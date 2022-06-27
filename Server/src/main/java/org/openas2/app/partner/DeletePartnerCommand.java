@@ -60,6 +60,7 @@ public class DeletePartnerCommand extends AliasedPartnershipsCommand {
             }
 
             partFx.getPartners().remove(name);
+            partFx.removePartner(name);
 
             return new CommandResult(CommandResult.TYPE_OK);
         }

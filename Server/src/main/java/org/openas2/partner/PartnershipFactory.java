@@ -33,4 +33,8 @@ public interface PartnershipFactory extends Component {
     List<Partnership> getPartnerships();
 
     Map<String, Object> getPartners();
+
+    void removePartnership(String name) throws OpenAS2Exception;
+
+    void removePartner(String name) throws OpenAS2Exception;
 }

@@ -39,6 +39,7 @@ public class DeletePartnershipCommand extends AliasedPartnershipsCommand {
                 Partnership part = parts.next();
                 if (part.getName().equals(name)) {
                     partFx.getPartnerships().remove(part);
+                    partFx.removePartnership(name);
                     return new CommandResult(CommandResult.TYPE_OK, "deleted " + name);
                 }
             }

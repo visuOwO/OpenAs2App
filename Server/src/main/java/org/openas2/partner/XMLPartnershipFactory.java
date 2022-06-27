@@ -11,10 +11,7 @@ import org.openas2.schedule.HasSchedule;
 import org.openas2.support.FileMonitorAdapter;
 import org.openas2.util.AS2Util;
 import org.openas2.util.XMLUtil;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import org.w3c.dom.*;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -212,7 +209,7 @@ public class XMLPartnershipFactory extends BasePartnershipFactory implements Has
 
         // add the partnership to the list of available partnerships
         partnerships.add(partnership);
-        
+
         // Now check if we need to add a directory polling module
         Node pollerCfgNode = XMLUtil.findChildNode(node, Partnership.PCFG_POLLER);
         if (pollerCfgNode != null) {
@@ -375,6 +372,56 @@ public class XMLPartnershipFactory extends BasePartnershipFactory implements Has
 
         } catch (XPathExpressionException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void removePartnership(String name) throws OpenAS2Exception {
+        try {
+            Document doc = getPartnershipsXml();
+            Node rootNode = doc.getDocumentElement();
+            NodeList list = rootNode.getChildNodes();
+            int l = list.getLength();
+            for (int i = 0; i < l; i++) {
+                Node childNode = list.item(i);
+                if (childNode == null) {
+                    continue;
+                }
+                String nodeName = childNode.getNodeName();
+                if (nodeName.equals("partnership")) {
+                    NamedNodeMap attrNodes = childNode.getAttributes();
+                    Node attribute = attrNodes.getNamedItem("name");
+                    if (attribute.getNodeValue().equals(name)) {
+                        rootNode.removeChild(childNode);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new OpenAS2Exception(e);
+        }
+    }
+
+    public void removePartner(String name) throws OpenAS2Exception {
+        try {
+            Document doc = getPartnershipsXml();
+            Node rootNode = doc.getDocumentElement();
+            NodeList list = rootNode.getChildNodes();
+            int l = list.getLength();
+            for (int i = 0; i < l; i++) {
+                Node childNode = list.item(i);
+                if (childNode == null) {
+                    continue;
+                }
+                String nodeName = childNode.getNodeName();
+                if (nodeName.equals("partner")) {
+                    NamedNodeMap attrNodes = childNode.getAttributes();
+                    Node attribute = attrNodes.getNamedItem("name");
+                    if (attribute.getNodeValue().equals(name)) {
+                        rootNode.removeChild(childNode);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new OpenAS2Exception(e);
         }
     }
 }
