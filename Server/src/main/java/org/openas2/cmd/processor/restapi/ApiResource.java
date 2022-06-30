@@ -7,6 +7,7 @@ package org.openas2.cmd.processor.restapi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.openas2.OpenAS2Exception;
 import org.openas2.cert.AliasedCertificateFactory;
 import org.openas2.cmd.CommandResult;
 import org.openas2.cmd.processor.RestCommandProcessor;
@@ -35,14 +36,18 @@ import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
+import org.openas2.util.AS2Util;
+
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.security.Key;
+import java.security.KeyStore;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -72,9 +77,9 @@ public class ApiResource {
     @Context
     Request request;
     private final ObjectMapper mapper;
-    
+
     public ApiResource() {
-                
+
         mapper = new ObjectMapper();
         // enable pretty printing
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -154,6 +159,9 @@ public class ApiResource {
             if (action.equalsIgnoreCase("importbystream") && resource.equalsIgnoreCase("cert")) {
                 return this.importCertificateByStream(itemId.substring(1), formParams);
             }
+            if (action.equalsIgnoreCase("importbyfile") && resource.equalsIgnoreCase("cert")) {
+                return this.importCertificateByFileName(itemId.substring(1),formParams);
+            }
             List<String> params = new ArrayList<String>();
             if (action != null) {
                 params.add(action);
@@ -194,7 +202,7 @@ public class ApiResource {
     @Path("/{resource}/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public CommandResult putCommand(@PathParam("param") String resource, @PathParam("id") String itemId, MultivaluedMap<String, String> formParams) throws Exception {
+    public CommandResult putCommand(@PathParam("resource") String resource, @PathParam("id") String itemId, MultivaluedMap<String, String> formParams) throws Exception {
         return postCommand(resource, "add", itemId, formParams);
     }
 
@@ -209,7 +217,7 @@ public class ApiResource {
     @RolesAllowed({"ADMIN"})
     @HEAD
     @Path("/{resource}{action:(/[^/]+?)?}{id:(/[^/]+?)?}")
-    public Response headCommand(@PathParam("param") String command) {
+    public Response headCommand(@PathParam("resource") String command) {
         // Just an Empty response
         return Response.status(200).build();
     }
@@ -241,6 +249,75 @@ public class ApiResource {
             throw ex;
             // return Response.status(506).entity( ex.getMessage()).build();
         }
+    }
+
+    private CommandResult importCertificateByFileName(String itemId, MultivaluedMap<String, String> formParams) throws Exception {
+        AliasedCertificateFactory certFx = (AliasedCertificateFactory) getProcessor().getSession().getCertificateFactory();
+        String fileName = formParams.getFirst("fileName");
+        String pwd = formParams.getFirst("password");
+        try {
+            if (fileName == null) {
+                return new CommandResult(CommandResult.TYPE_ERROR, "Missing fileName.");
+            }
+            if ((fileName.endsWith(".p12") || fileName.endsWith(".pfx"))) {
+                if (pwd == null) {
+                    return new CommandResult(CommandResult.TYPE_ERROR, "KeyStore file missing password.");
+                }
+                return importPrivateKey(certFx, itemId, fileName, pwd);
+            }
+            else {
+                return importCert(certFx,itemId,fileName);
+            }
+        }
+        catch (IOException e) {
+            return new CommandResult(CommandResult.TYPE_ERROR,"File not found: "+ fileName);
+        }
+
+    }
+
+    private CommandResult importCert(AliasedCertificateFactory certFx, String alias, String fileName) throws IOException, CertificateException, OpenAS2Exception {
+        FileInputStream fis = new FileInputStream(fileName);
+        BufferedInputStream bis = new BufferedInputStream(fis);
+
+        java.security.cert.CertificateFactory cf = java.security.cert.CertificateFactory.getInstance("X.509");
+
+        CommandResult cmdRes = new CommandResult(CommandResult.TYPE_OK, "Certificate(s) imported successfully");
+
+        while (bis.available() > 0) {
+            Certificate cert = cf.generateCertificate(bis);
+
+            if (cert instanceof X509Certificate) {
+                certFx.addCertificate(alias, (X509Certificate) cert, true);
+                cmdRes.getResults().add("Imported certificate: " + cert.toString());
+
+                return cmdRes;
+            }
+        }
+
+        return new CommandResult(CommandResult.TYPE_ERROR, "No valid X509 certificates found");
+    }
+    private CommandResult importPrivateKey(AliasedCertificateFactory certFx, String alias, String filename, String password) throws Exception {
+        KeyStore ks = AS2Util.getCryptoHelper().getKeyStore();
+        ks.load(new FileInputStream(filename), password.toCharArray());
+
+        Enumeration<String> aliases = ks.aliases();
+
+        while (aliases.hasMoreElements()) {
+            String certAlias = aliases.nextElement();
+            Certificate cert = ks.getCertificate(certAlias);
+
+            if (cert instanceof X509Certificate) {
+                certFx.addCertificate(alias, (X509Certificate) cert, true);
+
+                Key certKey = ks.getKey(certAlias, password.toCharArray());
+                certFx.addPrivateKey(alias, certKey, password);
+
+                return new CommandResult(CommandResult.TYPE_OK, "Imported certificate and key: " + cert.toString());
+            }
+        }
+
+        return new CommandResult(CommandResult.TYPE_ERROR, "No valid X509 certificates found");
+
     }
 
 }
