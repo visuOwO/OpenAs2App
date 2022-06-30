@@ -264,15 +264,12 @@ public class ApiResource {
                     return new CommandResult(CommandResult.TYPE_ERROR, "KeyStore file missing password.");
                 }
                 return importPrivateKey(certFx, itemId, fileName, pwd);
-            }
-            else {
+            } else {
                 return importCert(certFx,itemId,fileName);
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             return new CommandResult(CommandResult.TYPE_ERROR,"File not found: "+ fileName);
         }
-
     }
 
     private CommandResult importCert(AliasedCertificateFactory certFx, String alias, String fileName) throws IOException, CertificateException, OpenAS2Exception {
